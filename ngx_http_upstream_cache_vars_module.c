@@ -8,7 +8,7 @@
 #include <ngx_http.h>
 
 
-static ngx_int_t ngx_http_upstream_cache_vars_add_variable(ngx_conf_t *cf);
+static ngx_int_t ngx_http_upstream_cache_vars_add_variables(ngx_conf_t *cf);
 
 static ngx_int_t ngx_http_upstream_cache_key_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
@@ -115,7 +115,7 @@ static ngx_http_variable_t  ngx_http_upstream_cache_vars[] = {
 
 
 static ngx_int_t
-ngx_http_upstream_cache_vars_add_variable(ngx_conf_t *cf)
+ngx_http_upstream_cache_vars_add_variables(ngx_conf_t *cf)
 {
     ngx_http_variable_t  *v;
 	ngx_http_variable_t  *var;
@@ -183,7 +183,7 @@ ngx_http_upstream_cache_key_crc32_variable(ngx_http_request_t *r,
 {
     u_char *crc32_str;
 
-    if (r->cache == NULL || r->cache->crc32.len == 0) {
+    if (r->cache == NULL) {
         v->not_found = 1;
         return NGX_OK;
     }
@@ -210,24 +210,26 @@ ngx_http_upstream_cache_key_hash_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
     u_char *key_hash;
+	size_t  key_len;
 
-    if (r->cache == NULL || r->cache->key.len == 0) {
+    if (r->cache == NULL) {
         v->not_found = 1;
         return NGX_OK;
     }
 
-    key_hash = ngx_pnalloc(r->pool, r->cache->key.len * 2 + 1);
+    key_len = NGX_HTTP_CACHE_KEY_LEN;
+
+    key_hash = ngx_pnalloc(r->pool, key_len * 2 + 1);
     if (key_hash == NULL) {
         return NGX_ERROR;
     }
 
-    ngx_hex_dump(key_hash, r->cache->key.data, r->cache->key.len);
+    ngx_hex_dump(key_hash, r->cache->key, key_len);
 
-
-    key_hash[r->cache->key.len * 2] = '\0';
+    key_hash[key_len * 2] = '\0';
 
     v->data = key_hash;
-    v->len = r->cache->key.len * 2;
+    v->len = key_len * 2;
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
@@ -241,24 +243,26 @@ ngx_http_upstream_cache_main_hash_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
     u_char *main_hash;
+	size_t  main_len;
 
-    if (r->cache == NULL || r->cache->main.len == 0) {
+    if (r->cache == NULL) {
         v->not_found = 1;
         return NGX_OK;
     }
 
-    main_hash = ngx_pnalloc(r->pool, r->cache->main.len * 2 + 1);
+    main_len = NGX_HTTP_CACHE_KEY_LEN;
+
+    main_hash = ngx_pnalloc(r->pool, main_len * 2 + 1);
     if (main_hash == NULL) {
         return NGX_ERROR;
     }
 
-    ngx_hex_dump(main_hash, r->cache->main.data, r->cache->main.len);
+    ngx_hex_dump(main_hash, r->cache->main, main_len);
 
-
-    main_hash[r->cache->main.len * 2] = '\0';
+    main_hash[main_len * 2] = '\0';
 
     v->data = main_hash;
-    v->len = r->cache->main.len * 2;
+    v->len = main_len * 2;
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
@@ -272,24 +276,26 @@ ngx_http_upstream_cache_variant_hash_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
     u_char *variant_hash;
+	size_t  variant_len;
 
-    if (r->cache == NULL || r->cache->variant.len == 0) {
+    if (r->cache == NULL) {
         v->not_found = 1;
         return NGX_OK;
     }
 
-    variant_hash = ngx_pnalloc(r->pool, r->cache->variant.len * 2 + 1);
+    variant_len = NGX_HTTP_CACHE_KEY_LEN;
+
+    variant_hash = ngx_pnalloc(r->pool, variant_len * 2 + 1);
     if (variant_hash == NULL) {
         return NGX_ERROR;
     }
 
-    ngx_hex_dump(variant_hash, r->cache->variant.data, r->cache->variant.len);
+    ngx_hex_dump(variant_hash, r->cache->variant, variant_len);
 
-
-    variant_hash[r->cache->variant.len * 2] = '\0';
+    variant_hash[variant_len * 2] = '\0';
 
     v->data = variant_hash;
-    v->len = r->cache->variant.len * 2;
+    v->len = variant_len * 2;
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
