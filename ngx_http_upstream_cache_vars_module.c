@@ -13,31 +13,34 @@ static ngx_int_t ngx_http_upstream_cache_vars_add_variables(ngx_conf_t *cf);
 static ngx_int_t ngx_http_upstream_cache_key_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_key_crc32_variable(
-	ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_key_hash_variable(
-	ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_main_hash_variable(
-	ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_variant_hash_variable(
-	ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_file_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_age_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_create_time_variable(
-	ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
-
+    ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+static ngx_int_t ngx_http_upstream_cache_create_date_variable(
+    ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_check_cache_control(
     ngx_http_request_t *r);
 static ngx_int_t ngx_http_upstream_cache_check_accel_expires(
     ngx_http_request_t *r);
 static time_t ngx_http_cache_get_expire_time(ngx_http_request_t *r);
 static ngx_int_t ngx_http_upstream_cache_expire_time_variable(
-	ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+static ngx_int_t ngx_http_upstream_cache_expire_date_variable(
+    ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_ttl_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_max_age_variable(
-	ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+    ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 
 
 static ngx_http_module_t  ngx_http_upstream_cache_vars_module_ctx = {
@@ -73,47 +76,47 @@ ngx_module_t  ngx_http_upstream_cache_vars_module = {
 
 static ngx_http_variable_t  ngx_http_upstream_cache_vars[] = {
     { ngx_string("upstream_cache_key"), NULL,
-	  ngx_http_upstream_cache_key_variable,
+      ngx_http_upstream_cache_key_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_key_crc32"), NULL,
-	  ngx_http_upstream_cache_key_crc32_variable,
+      ngx_http_upstream_cache_key_crc32_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_key_hash"), NULL,
-	  ngx_http_upstream_cache_key_hash_variable,
+      ngx_http_upstream_cache_key_hash_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_main_hash"), NULL,
-	  ngx_http_upstream_cache_main_hash_variable,
+      ngx_http_upstream_cache_main_hash_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_variant_hash"), NULL,
-	  ngx_http_upstream_cache_variant_hash_variable,
+      ngx_http_upstream_cache_variant_hash_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_file"), NULL,
-	  ngx_http_upstream_cache_file_variable,
+      ngx_http_upstream_cache_file_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_age"), NULL,
-	  ngx_http_upstream_cache_age_variable,
+      ngx_http_upstream_cache_age_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_create_time"), NULL,
-	  ngx_http_upstream_cache_create_time_variable,
+      ngx_http_upstream_cache_create_time_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_expire_time"), NULL,
-	  ngx_http_upstream_cache_expire_time_variable,
+      ngx_http_upstream_cache_expire_time_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_ttl"), NULL,
-	  ngx_http_upstream_cache_ttl_variable,
+      ngx_http_upstream_cache_ttl_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_max_age"), NULL,
-	  ngx_http_upstream_cache_max_age_variable,
+      ngx_http_upstream_cache_max_age_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_null_string, NULL, NULL, 0, 0, 0 }
@@ -124,7 +127,7 @@ static ngx_int_t
 ngx_http_upstream_cache_vars_add_variables(ngx_conf_t *cf)
 {
     ngx_http_variable_t  *v;
-	ngx_http_variable_t  *var;
+    ngx_http_variable_t  *var;
 
     for (v = ngx_http_upstream_cache_vars; v->name.len; v++) {
         var = ngx_http_add_variable(cf, &v->name, v->flags);
@@ -216,7 +219,7 @@ ngx_http_upstream_cache_key_hash_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
     u_char *key_hash;
-	size_t  key_len;
+    size_t  key_len;
 
     if (r->cache == NULL) {
         v->not_found = 1;
@@ -249,7 +252,7 @@ ngx_http_upstream_cache_main_hash_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
     u_char *main_hash;
-	size_t  main_len;
+    size_t  main_len;
 
     if (r->cache == NULL) {
         v->not_found = 1;
@@ -282,7 +285,7 @@ ngx_http_upstream_cache_variant_hash_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
     u_char *variant_hash;
-	size_t  variant_len;
+    size_t  variant_len;
 
     if (r->cache == NULL) {
         v->not_found = 1;
