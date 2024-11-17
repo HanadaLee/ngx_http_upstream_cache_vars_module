@@ -210,7 +210,7 @@ ngx_http_upstream_cache_key_crc32_variable(ngx_http_request_t *r,
         return NGX_ERROR;
     }
 
-    ngx_sprintf(crc32_str, "%08x", (uint32_t) r->cache->crc32);
+    ngx_sprintf(crc32_str, "%08xD", r->cache->crc32);
 
     v->data = crc32_str;
     v->len = 8;
