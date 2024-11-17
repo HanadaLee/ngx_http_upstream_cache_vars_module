@@ -564,27 +564,28 @@ ngx_http_cache_get_expire_time(ngx_http_request_t *r)
 {
     time_t      expire_time;
     time_t      now;
-    time_t      age;
     ngx_int_t   rc;
 
     if (r->cache == NULL) {
-        return 0;
+        return NGX_ERROR;
     }
-
-    now = ngx_time();
-    age = now - r->cache->create_date;
 
     rc = ngx_http_upstream_cache_check_accel_expires(r);
     if (rc == NGX_DECLINED) {
-        expire_time = r->cache->valid_sec - age;
-    } else {
-        rc = ngx_http_upstream_cache_check_cache_control(r);
-        if (rc == NGX_DECLINED) {
-            expire_time = r->cache->valid_sec - age;
-        } else {
-            expire_time = r->cache->valid_sec - now;
-        }
+        goto new_expire;
     }
+
+    rc = ngx_http_upstream_cache_check_cache_control(r);
+    if (rc == NGX_DECLINED) {
+        goto new_expire;
+    }
+
+    return r->cache->valid_sec;
+
+new_expire:
+
+    now = ngx_time();
+    expire_time = r->cache->valid_sec - (now - r->cache->date);
 
     if (expire_time < 0) {
         expire_time = 0;
