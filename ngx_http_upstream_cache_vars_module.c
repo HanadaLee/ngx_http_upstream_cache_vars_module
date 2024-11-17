@@ -26,6 +26,12 @@ static ngx_int_t ngx_http_upstream_cache_age_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_create_time_variable(
 	ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
+
+static ngx_int_t ngx_http_upstream_cache_check_cache_control(
+    ngx_http_request_t *r);
+static ngx_int_t ngx_http_upstream_cache_check_accel_expires(
+    ngx_http_request_t *r);
+static time_t ngx_http_cache_get_expire_time(ngx_http_request_t *r);
 static ngx_int_t ngx_http_upstream_cache_expire_time_variable(
 	ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_upstream_cache_ttl_variable(ngx_http_request_t *r,
@@ -403,10 +409,197 @@ ngx_http_upstream_cache_create_time_variable(ngx_http_request_t *r,
 
 
 static ngx_int_t
+ngx_http_upstream_cache_check_cache_control(ngx_http_request_t *r)
+{
+    ngx_http_upstream_t  *u;
+    ngx_table_elt_t      *cache_control;
+    u_char               *p, *start, *last;
+    ngx_int_t             n;
+    ngx_uint_t            offset;
+
+    if (r->cache == NULL) {
+        return NGX_OK;
+    }
+
+    u = r->upstream;
+    if (u == NULL) {
+        return NGX_OK;
+    }
+
+    if (u->conf->ignore_headers & NGX_HTTP_UPSTREAM_IGN_CACHE_CONTROL) {
+        return NGX_OK;
+    }
+
+    if (r->cache->valid_sec != 0 && u->headers_in.x_accel_expires != NULL) {
+        return NGX_OK;
+    }
+
+    cache_control = u->headers_in.cache_control;
+    if (cache_control == NULL) {
+        return NGX_OK;
+    }
+
+    start = cache_control->value.data;
+    last = start + cache_control->value.len;
+
+#if (NGX_HTTP_PROXY_EXT)
+    if ((ngx_strlcasestrn(start, last, (u_char *) "no-cache", 8 - 1) != NULL 
+            && !(u->conf->ignore_cache_control & NGX_HTTP_UPSTREAM_IGN_CC_NOCACHE))
+        || (ngx_strlcasestrn(start, last, (u_char *) "no-store", 8 - 1) != NULL
+            && !(u->conf->ignore_cache_control & NGX_HTTP_UPSTREAM_IGN_CC_NOSTORE))
+        || (ngx_strlcasestrn(start, last, (u_char *) "private", 7 - 1) != NULL
+            && !(u->conf->ignore_cache_control & NGX_HTTP_UPSTREAM_IGN_CC_PRIVATE)))
+    {
+        return NGX_OK;
+    }
+#else
+    if (ngx_strlcasestrn(start, last, (u_char *) "no-cache", 8 - 1) != NULL
+        || ngx_strlcasestrn(start, last, (u_char *) "no-store", 8 - 1) != NULL
+        || ngx_strlcasestrn(start, last, (u_char *) "private", 7 - 1) != NULL)
+    {
+        return NGX_OK;
+    }
+#endif
+
+    p = ngx_strlcasestrn(start, last, (u_char *) "s-maxage=", 9 - 1);
+#if (NGX_HTTP_PROXY_EXT)
+    if (p && !(u->conf->ignore_cache_control & NGX_HTTP_UPSTREAM_IGN_CC_SMAXAGE))
+    {
+        offset = 9;
+    }
+    else if ((p = ngx_strlcasestrn(start, last, (u_char *) "max-age=", 7))
+        && !(u->conf->ignore_cache_control & NGX_HTTP_UPSTREAM_IGN_CC_MAXAGE))
+    {
+        offset = 8;
+    }
+    else {
+        p = NULL;
+    }
+#else
+    offset = 9;
+
+    if (p == NULL) {
+        p = ngx_strlcasestrn(start, last, (u_char *) "max-age=", 8 - 1);
+        offset = 8;
+    }
+#endif
+
+    if (p == NULL) {
+        return NGX_OK;
+    }
+
+    n = 0;
+
+    for (p += offset; p < last; p++) {
+        if (*p == ',' || *p == ';' || *p == ' ') {
+            break;
+        }
+
+        if (*p >= '0' && *p <= '9') {
+            n = n * 10 + (*p - '0');
+            continue;
+        }
+
+        return NGX_OK;
+    }
+
+    if (n == 0) {
+        return NGX_OK;
+    }
+
+    return NGX_DECLINED;
+}
+
+
+static ngx_int_t
+ngx_http_upstream_cache_check_accel_expires(ngx_http_request_t *r)
+{
+    ngx_http_upstream_t  *u;
+    ngx_table_elt_t      *h;
+    u_char               *p;
+    size_t                len;
+    ngx_int_t             n;
+
+    if (r->cache == NULL) {
+        return NGX_OK;
+    }
+
+    u = r->upstream;
+    if (u == NULL) {
+        return NGX_OK;
+    }
+
+    if (u->conf->ignore_headers & NGX_HTTP_UPSTREAM_IGN_XA_EXPIRES) {
+        return NGX_OK;
+    }
+
+    h = u->headers_in.x_accel_expires;
+    if (h == NULL) {
+        return NGX_OK;
+    }
+
+    len = h->value.len;
+    p = h->value.data;
+
+    if (len == 0) {
+        return NGX_OK;
+    }
+
+    if (p[0] != '@') {
+        n = ngx_atoi(p, len);
+
+        if (n > 0) {
+            return NGX_DECLINED;
+        }
+
+        return NGX_OK;
+    }
+
+    return NGX_OK;
+}
+
+
+static time_t
+ngx_http_cache_get_expire_time(ngx_http_request_t *r)
+{
+    time_t      expire_time;
+    time_t      now;
+    time_t      age;
+    ngx_int_t   rc;
+
+    if (r->cache == NULL) {
+        return 0;
+    }
+
+    now = ngx_time();
+    age = now - r->cache->create_date;
+
+    rc = ngx_http_upstream_cache_check_accel_expires(r);
+    if (rc == NGX_DECLINED) {
+        expire_time = r->cache->valid_sec - age;
+    } else {
+        rc = ngx_http_upstream_cache_check_cache_control(r);
+        if (rc == NGX_DECLINED) {
+            expire_time = r->cache->valid_sec - age;
+        } else {
+            expire_time = r->cache->valid_sec - now;
+        }
+    }
+
+    if (expire_time < 0) {
+        expire_time = 0;
+    }
+
+    return expire_time;
+}
+
+
+static ngx_int_t
 ngx_http_upstream_cache_expire_time_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
-    u_char  *p;
+    u_char     *p;
+    time_t      expire_time;
 
     if (r->upstream == NULL) {
         v->not_found = 1;
@@ -421,16 +614,18 @@ ngx_http_upstream_cache_expire_time_variable(ngx_http_request_t *r,
         return NGX_OK;
     }
 
+    expire_time = ngx_http_cache_get_expire_time(r);
+
     p = ngx_pnalloc(r->pool, NGX_TIME_T_LEN);
     if (p == NULL) {
         return NGX_ERROR;
     }
 
-    v->len = ngx_sprintf(p, "%T", r->cache->valid_sec) - p;
+    v->len = ngx_sprintf(p, "%T", expire_time) - p;
+    v->data = p;
     v->valid = 1;
     v->no_cacheable = 0;
     v->not_found = 0;
-    v->data = p;
 
     return NGX_OK;
 }
@@ -440,8 +635,8 @@ static ngx_int_t
 ngx_http_upstream_cache_ttl_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
-    u_char  *p;
-    time_t   now, ttl;
+    u_char     *p;
+    time_t      now, ttl, expire_time;
 
     if (r->upstream == NULL) {
         v->not_found = 1;
@@ -461,10 +656,11 @@ ngx_http_upstream_cache_ttl_variable(ngx_http_request_t *r,
         return NGX_ERROR;
     }
 
+    expire_time = ngx_http_cache_get_expire_time(r);
     now = ngx_time();
-    ttl = r->cache->valid_sec - now;
+    ttl = expire_time - now;
 
-    if (r->cache->valid_sec < now) {
+    if (expire_time < now) {
         ttl = 0;
     }
 
@@ -483,7 +679,7 @@ ngx_http_upstream_cache_max_age_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
     u_char  *p;
-    time_t   max_age;
+    time_t   max_age, expire_time;
 
     if (r->upstream == NULL) {
         v->not_found = 1;
@@ -503,7 +699,8 @@ ngx_http_upstream_cache_max_age_variable(ngx_http_request_t *r,
         return NGX_ERROR;
     }
 
-    max_age = r->cache->valid_sec - r->cache->date;
+    expire_time = ngx_http_cache_get_expire_time(r);
+    max_age = expire_time - r->cache->date;
 
     v->len = ngx_sprintf(p, "%T", max_age) - p;
     v->valid = 1;
