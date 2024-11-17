@@ -107,8 +107,16 @@ static ngx_http_variable_t  ngx_http_upstream_cache_vars[] = {
       ngx_http_upstream_cache_create_time_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
+    { ngx_string("upstream_cache_create_date"), NULL,
+      ngx_http_upstream_cache_create_date_variable,
+      0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
+
     { ngx_string("upstream_cache_expire_time"), NULL,
       ngx_http_upstream_cache_expire_time_variable,
+      0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
+
+    { ngx_string("upstream_cache_expire_date"), NULL,
+      ngx_http_upstream_cache_expire_date_variable,
       0, NGX_HTTP_VAR_NOCACHEABLE, 0 },
 
     { ngx_string("upstream_cache_ttl"), NULL,
