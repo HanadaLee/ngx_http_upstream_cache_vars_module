@@ -420,7 +420,7 @@ ngx_http_upstream_cache_create_time_variable(ngx_http_request_t *r,
 
 
 static ngx_int_t
-ngx_http_upstream_cache_crate_date_variable(ngx_http_request_t *r,
+ngx_http_upstream_cache_create_date_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
     u_char     *p;
