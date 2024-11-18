@@ -17,6 +17,8 @@ ngx_http_upstream_cache_vars_module is a nginx module to provide a collection of
 
 This Nginx module is currently considered experimental. Issues and PRs are welcome if you encounter any problems.
 
+This module cannot be used with freenginx due to variable name conflicts. If you really need to use it with freenginx, you can first remove the variables $upstream_cache_age and $upstream_cache_key from this module code.
+
 # Synopsis
 
 ```nginx
